@@ -1,26 +1,38 @@
-import random
 import numpy as np
+from scipy.spatial.transform import Rotation
 
-def monte_carlo_docking(ligand, receptor, temperature):
-    # Simulate Monte Carlo sampling for ligand docking
-    energy = calculate_energy(ligand, receptor)
-    best_ligand = ligand
-    best_energy = energy
+def monte_carlo_docking(ligand, receptor, temperature, n_steps=1000):
+    current_pose = ligand.GetConformer()
+    current_energy = calculate_energy(ligand, receptor)
+    best_pose = current_pose
+    best_energy = current_energy
     
-    for _ in range(1000):  # Number of MC iterations
-        new_ligand = perturb_ligand(ligand)
-        new_energy = calculate_energy(new_ligand, receptor)
+    kT = 0.0019872041 * temperature  # Boltzmann constant * temperature
+    
+    for step in range(n_steps):
+        # Generate new pose through random rotation and translation
+        new_pose = perturb_ligand(current_pose)
+        new_energy = calculate_energy(new_pose, receptor)
         
-        if new_energy < best_energy or random.random() < np.exp(-(new_energy - best_energy) / temperature):
-            best_ligand = new_ligand
-            best_energy = new_energy
+        # Metropolis criterion
+        if new_energy < current_energy or \
+           np.random.random() < np.exp(-(new_energy - current_energy)/kT):
+            current_pose = new_pose
+            current_energy = new_energy
+            
+            if current_energy < best_energy:
+                best_pose = current_pose
+                best_energy = current_energy
     
-    return best_ligand, best_energy
+    return best_pose, best_energy
 
-def calculate_energy(ligand, receptor):
-    # Placeholder energy calculation (should use force fields or scoring functions)
-    return np.random.random()
-
-def perturb_ligand(ligand):
-    # Perturb the ligand conformation randomly
-    return ligand
+def perturb_ligand(pose):
+    # Random rotation
+    rotation = Rotation.random()
+    # Random translation
+    translation = np.random.uniform(-2, 2, 3)
+    
+    new_pose = pose.copy()
+    new_coords = rotation.apply(pose.GetPositions()) + translation
+    new_pose.SetPositions(new_coords)
+    return new_pose
