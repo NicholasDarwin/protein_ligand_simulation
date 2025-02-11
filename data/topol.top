@@ -1,0 +1,10 @@
+; Topology file for GROMACS (simplified version)
+
+[ system ]
+; Name
+Protein-Ligand System
+
+[ molecules ]
+; Compound        #mols
+Protein_chain_A    1
+Ligand_chain_B     1

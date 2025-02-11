@@ -17,8 +17,13 @@ def on_search_button_click():
         messagebox.showerror("Error", "Please enter both protein and ligand names.")
 
 def on_run_simulation_click():
-    # Trigger GROMACS simulation after protein and ligand are set up
-    run_gromacs_simulation()
+    protein_name = protein_name_entry.get()
+    if protein_name:
+        # Trigger GROMACS simulation with the protein name
+        run_gromacs_simulation(protein_name)
+        messagebox.showinfo("Success", "Simulation started!")
+    else:
+        messagebox.showerror("Error", "Please enter a protein name first.")
 
 def launch_gui():
     root = tk.Tk()
