@@ -1,12 +1,9 @@
+# app.py
+
 import streamlit as st
 from ui.molecular_input import input_molecule
 from calculations.molecular_dynamics import run_simulation
-from calculations.docking_score import calculate_docking_score
-from calculations.mm_pbsa import mm_pbsa
-from calculations.monte_carlo_docking import monte_carlo_docking
-from calculations.genetic_algorithm import genetic_algorithm
-from visualization.heatmap import generate_heatmap
-from visualization.interaction_map import generate_interaction_map
+# ... other imports ...
 
 def main():
     st.title("Protein-Ligand Analysis Pipeline")
@@ -44,84 +41,25 @@ def main():
                 if analysis_options["Molecular Dynamics"]:
                     st.write("Running Molecular Dynamics Simulation...")
                     md_results = run_simulation(ligand_file)
-                    results["MD"] = md_results
                     
-                if analysis_options["Docking"]:
-                    st.write("Calculating Docking Score...")
-                    docking_score = calculate_docking_score(ligand_file, protein_file)
-                    results["Docking"] = docking_score
-                    
-                if analysis_options["Free Energy"]:
-                    st.write("Calculating Binding Free Energy...")
-                    binding_energy = mm_pbsa(ligand_file, protein_file)
-                    results["Free Energy"] = binding_energy
-                    
-                if analysis_options["Monte Carlo"]:
-                    st.write("Running Monte Carlo Sampling...")
-                    mc_pose, mc_energy = monte_carlo_docking(ligand_file, protein_file, temperature=300)
-                    results["Monte Carlo"] = {"pose": mc_pose, "energy": mc_energy}
-                    
-                if analysis_options["Genetic Algorithm"]:
-                    st.write("Running Genetic Algorithm Optimization...")
-                    ga_result = genetic_algorithm([ligand_file], protein_file)
-                    results["GA"] = ga_result
+                    if md_results["status"] == "completed":
+                        results["MD"] = md_results
+                        
+                        # Display trajectory summary
+                        st.write("MD Simulation Results:")
+                        st.write(f"Number of frames: {len(md_results['trajectory'])}")
+                        st.write(f"Final RMSD: {md_results['rmsd']:.2f} Å")
+                        
+                        # Plot energy profile
+                        if md_results['energies']:
+                            st.line_chart(md_results['energies'])
+                    else:
+                        st.error(md_results["message"])
                 
-                # Display Results
-                st.subheader("Analysis Results")
-                
-                # Display numerical results
-                for analysis_type, result in results.items():
-                    st.write(f"{analysis_type} Results:")
-                    st.json(result)
-                
-                # Generate visualizations
-                st.subheader("Visualizations")
-                
-                # Interaction heatmap
-                st.write("Interaction Heatmap")
-                interaction_data = calculate_interaction_matrix(ligand_file, protein_file)
-                generate_heatmap(interaction_data)
-                
-                # Interaction network
-                st.write("Interaction Network")
-                interaction_network = calculate_interaction_network(ligand_file, protein_file)
-                generate_interaction_map(interaction_network)
-                
-                # Additional analysis outputs
-                if "MD" in results:
-                    st.write("Molecular Dynamics Trajectory")
-                    display_trajectory(results["MD"])
-                    
-                    st.write("RMSD Plot")
-                    plot_rmsd(results["MD"])
-                    
-                    st.write("Energy Plot")
-                    plot_energy(results["MD"])
+                # ... rest of the analysis options ...
                 
             except Exception as e:
                 st.error(f"Error during analysis: {str(e)}")
-
-def calculate_interaction_matrix(ligand, protein):
-    # Placeholder for interaction matrix calculation
-    # This should be implemented based on your specific needs
-    return [[0, 1, 2], [1, 0, 3], [2, 3, 0]]
-
-def calculate_interaction_network(ligand, protein):
-    # Placeholder for interaction network calculation
-    # This should be implemented based on your specific needs
-    return [("Residue1", "Ligand", 0.5), ("Residue2", "Ligand", 0.3)]
-
-def display_trajectory(md_results):
-    # Implement trajectory visualization
-    st.write("Trajectory visualization placeholder")
-
-def plot_rmsd(md_results):
-    # Implement RMSD plotting
-    st.write("RMSD plot placeholder")
-
-def plot_energy(md_results):
-    # Implement energy plotting
-    st.write("Energy plot placeholder")
 
 if __name__ == "__main__":
     main()

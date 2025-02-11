@@ -1,8 +1,0 @@
-streamlit
-py3Dmol
-nglview
-rdkit
-pymol
-seaborn
-matplotlib
-numpy

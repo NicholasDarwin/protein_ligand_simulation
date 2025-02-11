@@ -1,94 +1,176 @@
-import openmm
-from openmm import app
-from openmm.unit import *
-import tempfile
-import os
+# molecular_dynamics.py
+import numpy as np
+from .lennard_jones import lennard_jones_potential, lennard_jones_force
+from .coulombs_law import coulombs_law
+from .hydrogen_bond_energy import hydrogen_bond_energy
+from .sasa import solvent_accessible_surface_area
+from .rmsd import calculate_rmsd
 
-def generate_ligand_parameters(mol2_path):
-    """Generate parameters for the ligand using OpenMM directly"""
-    # Read mol2 file directly using OpenMM's built-in parser
-    pdb = app.PDBFile(mol2_path)
-    return pdb
-
-def create_system_with_custom_ligand(pdb, ligand_pdb, forcefield):
-    """Create OpenMM system with custom ligand parameters"""
-    # Create a new topology that includes the ligand
-    modeller = app.Modeller(pdb.topology, pdb.positions)
+class MolecularDynamics:
+    def __init__(self, temperature=300, time_step=0.002, steps=1000):
+        """
+        Initialize molecular dynamics simulation
+        
+        Parameters:
+        -----------
+        temperature : float
+            Temperature in Kelvin
+        time_step : float
+            Time step in picoseconds
+        steps : int
+            Number of simulation steps
+        """
+        self.temperature = temperature
+        self.time_step = time_step
+        self.steps = steps
+        self.kb = 0.0019872041  # Boltzmann constant in kcal/mol/K
+        
+    def run_simulation(self, molecule):
+        """
+        Run molecular dynamics simulation
+        
+        Parameters:
+        -----------
+        molecule : dict
+            Dictionary containing molecular information:
+            - positions: np.array of atomic positions
+            - velocities: np.array of atomic velocities
+            - masses: np.array of atomic masses
+            - charges: np.array of atomic charges
+            - bonds: list of bonded atom pairs
+        """
+        # Initialize arrays for storing trajectory data
+        trajectory = []
+        energies = []
+        
+        # Get initial positions and velocities
+        positions = molecule['positions']
+        velocities = self._initialize_velocities(molecule['masses'])
+        
+        # Main simulation loop
+        for step in range(self.steps):
+            # Calculate forces
+            forces = self._calculate_forces(molecule)
+            
+            # Update positions and velocities using Velocity Verlet algorithm
+            positions, velocities = self._velocity_verlet_step(
+                positions, velocities, forces, molecule['masses']
+            )
+            
+            # Temperature control (simple velocity scaling)
+            self._temperature_control(velocities, molecule['masses'])
+            
+            # Calculate energy
+            energy = self._calculate_energy(molecule)
+            
+            # Store trajectory and energy
+            trajectory.append(positions.copy())
+            energies.append(energy)
+            
+            # Update molecule positions
+            molecule['positions'] = positions
+            
+            # Print progress
+            if step % 100 == 0:
+                print(f"Step {step}/{self.steps}, Energy: {energy:.2f} kcal/mol")
+        
+        return trajectory, energies
     
-    # Create system using the force field
-    system = forcefield.createSystem(
-        modeller.topology,
-        nonbondedMethod=app.NoCutoff,
-        constraints=app.HBonds,
-        rigidWater=True,
-        removeCMMotion=True
-    )
+    def _initialize_velocities(self, masses):
+        """Initialize random velocities based on Maxwell-Boltzmann distribution"""
+        velocities = np.random.normal(
+            0, np.sqrt(self.kb * self.temperature / masses[:, np.newaxis]), 
+            size=(len(masses), 3)
+        )
+        return velocities
     
-    return system, modeller
-
-def run_simulation(input_file, force_field="amber99sbildn.xml", temperature=300*kelvin, time_step=2*femtoseconds, steps=50000):
-    try:
-        # Handle uploaded file
-        if hasattr(input_file, 'name'):
-            with tempfile.NamedTemporaryFile(suffix='.pdb', delete=False) as tmp_file:
-                tmp_file.write(input_file.getvalue())
-                pdb_path = tmp_file.name
-        else:
-            pdb_path = input_file
-
-        # Generate ligand parameters directly from PDB
-        ligand_pdb = generate_ligand_parameters(pdb_path)
-
-        # Load force field
-        try:
-            forcefield = app.ForceField('amber99sbildn.xml', 'tip3p.xml')
-        except Exception as e:
-            raise ValueError(f"Failed to load force field: {str(e)}")
-
-        # Create system with custom ligand
-        system, modeller = create_system_with_custom_ligand(ligand_pdb, ligand_pdb, forcefield)
-
-        # Set up integrator
-        integrator = openmm.LangevinIntegrator(temperature, 1/picosecond, time_step)
+    def _calculate_forces(self, molecule):
+        """Calculate forces on each atom"""
+        forces = np.zeros_like(molecule['positions'])
         
-        # Create simulation
-        simulation = app.Simulation(modeller.topology, system, integrator)
+        # Non-bonded interactions
+        for i in range(len(molecule['positions'])):
+            for j in range(i + 1, len(molecule['positions'])):
+                # Calculate distance
+                r_ij = molecule['positions'][j] - molecule['positions'][i]
+                distance = np.linalg.norm(r_ij)
+                
+                # Lennard-Jones force
+                epsilon = 0.1  # kcal/mol
+                sigma = 3.5    # Angstroms
+                lj_force = lennard_jones_force(distance, epsilon, sigma)
+                
+                # Coulomb force
+                coulomb_force = coulombs_law(
+                    molecule['charges'][i], 
+                    molecule['charges'][j], 
+                    distance
+                )
+                
+                # Total force
+                total_force = (lj_force + coulomb_force) * r_ij / distance
+                forces[i] += total_force
+                forces[j] -= total_force
         
-        # Set initial positions
-        simulation.context.setPositions(modeller.positions)
+        # Bonded interactions (simple harmonic potential)
+        k_bond = 100.0  # kcal/mol/A^2
+        r0 = 1.5       # Equilibrium bond length
+        for bond in molecule['bonds']:
+            i, j = bond
+            r_ij = molecule['positions'][j] - molecule['positions'][i]
+            distance = np.linalg.norm(r_ij)
+            force = -k_bond * (distance - r0) * r_ij / distance
+            forces[i] += force
+            forces[j] -= force
+            
+        return forces
+    
+    def _velocity_verlet_step(self, positions, velocities, forces, masses):
+        """Implement Velocity Verlet integration"""
+        # Update positions
+        new_positions = positions + velocities * self.time_step + \
+                       0.5 * forces / masses[:, np.newaxis] * self.time_step**2
+                       
+        # Calculate new forces
+        new_forces = self._calculate_forces({'positions': new_positions})
         
-        # Minimize energy
-        print("Minimizing energy...")
-        simulation.minimizeEnergy()
-
-        # Set up reporters
-        simulation.reporters.append(app.DCDReporter('trajectory.dcd', 1000))
-        simulation.reporters.append(app.StateDataReporter(
-            'output.txt', 
-            1000, 
-            step=True,
-            potentialEnergy=True,
-            temperature=True,
-            progress=True,
-            remainingTime=True,
-            speed=True,
-            totalSteps=steps,
-            separator='\t'
-        ))
-
-        # Run simulation
-        print(f"Running simulation for {steps} steps...")
-        simulation.step(steps)
-        print("Simulation completed successfully")
+        # Update velocities
+        new_velocities = velocities + \
+                        0.5 * (forces + new_forces) / masses[:, np.newaxis] * self.time_step
+                        
+        return new_positions, new_velocities
+    
+    def _temperature_control(self, velocities, masses):
+        """Simple velocity scaling for temperature control"""
+        kinetic_energy = 0.5 * np.sum(masses[:, np.newaxis] * velocities**2)
+        current_temp = 2 * kinetic_energy / (3 * len(masses) * self.kb)
         
-        return simulation
-
-    except Exception as e:
-        raise Exception(f"Simulation failed: {str(e)}")
-    finally:
-        # Clean up temporary files
-        if 'pdb_path' in locals():
-            try:
-                os.unlink(pdb_path)
-            except:
-                pass
+        scaling_factor = np.sqrt(self.temperature / current_temp)
+        velocities *= scaling_factor
+    
+    def _calculate_energy(self, molecule):
+        """Calculate total energy of the system"""
+        # Kinetic energy
+        kinetic = 0.5 * np.sum(molecule['masses'][:, np.newaxis] * 
+                              molecule['velocities']**2)
+        
+        # Potential energy (non-bonded)
+        potential = 0.0
+        for i in range(len(molecule['positions'])):
+            for j in range(i + 1, len(molecule['positions'])):
+                r_ij = molecule['positions'][j] - molecule['positions'][i]
+                distance = np.linalg.norm(r_ij)
+                
+                # Lennard-Jones
+                potential += lennard_jones_potential(
+                    distance, epsilon=0.1, sigma=3.5
+                )
+                
+                # Coulomb
+                potential += coulombs_law(
+                    molecule['charges'][i], 
+                    molecule['charges'][j], 
+                    distance
+                )
+        
+        return kinetic + potential
