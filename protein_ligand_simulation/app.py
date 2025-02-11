@@ -1,82 +1,127 @@
 import streamlit as st
-from ui.molecular_visualization import display_simulation_results
-from calculations.molecular_dynamics import run_simulation
 from ui.molecular_input import input_molecule
+from calculations.molecular_dynamics import run_simulation
+from calculations.docking_score import calculate_docking_score
+from calculations.mm_pbsa import mm_pbsa
+from calculations.monte_carlo_docking import monte_carlo_docking
+from calculations.genetic_algorithm import genetic_algorithm
+from visualization.heatmap import generate_heatmap
+from visualization.interaction_map import generate_interaction_map
 
 def main():
-    st.title("Virtual Ligand Screening Pipeline")
+    st.title("Protein-Ligand Analysis Pipeline")
     
-    # Add radio button to choose input method
-    input_method = st.radio(
-        "Choose input method:",
-        ["Upload File", "Manual Input"]
-    )
+    # Create two columns for protein and ligand upload
+    col1, col2 = st.columns(2)
     
-    # Initialize molecule variable
-    molecule = None
+    with col1:
+        st.subheader("Protein (Receptor) Upload")
+        protein_file = input_molecule("Upload Protein File")
+        
+    with col2:
+        st.subheader("Ligand Upload")
+        ligand_file = input_molecule("Upload Ligand File")
 
-    if input_method == "Upload File":
-        # File upload logic
-        molecule = input_molecule()
-        if molecule:
-            if st.button("Run Molecular Dynamics Simulation"):
-                try:
-                    st.write("Running simulation...")
-                    run_simulation(molecule)
-                    st.write("Simulation completed!")
-                    display_simulation_results()
-                except Exception as e:
-                    st.error(f"Error during simulation: {str(e)}")
-    
-    else:
-        # Manual input logic
-        st.subheader("Manual Molecular Input")
+    if protein_file and ligand_file:
+        st.success("Both files uploaded successfully!")
         
-        # Create input fields for molecular structure
-        molecule_name = st.text_input("Molecule Name")
+        # Analysis Options
+        st.subheader("Select Analysis Methods")
         
-        # Add atomic structure inputs
-        num_atoms = st.number_input("Number of Atoms", min_value=1, value=1)
-        
-        atoms_data = []
-        for i in range(int(num_atoms)):
-            st.write(f"Atom {i+1}")
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                atom_type = st.selectbox(f"Atom Type #{i+1}", 
-                    ["C", "H", "O", "N", "P", "S"], key=f"type_{i}")
-            with col2:
-                x = st.number_input(f"X coordinate #{i+1}", key=f"x_{i}")
-            with col3:
-                y = st.number_input(f"Y coordinate #{i+1}", key=f"y_{i}")
-            z = st.number_input(f"Z coordinate #{i+1}", key=f"z_{i}")
-            
-            atoms_data.append({
-                "type": atom_type,
-                "coordinates": (x, y, z)
-            })
-
-        # Create a mock molecule object after processing the atoms_data
-        molecule = {
-            "name": molecule_name,
-            "atoms": atoms_data
+        analysis_options = {
+            "Molecular Dynamics": st.checkbox("Run Molecular Dynamics Simulation"),
+            "Docking": st.checkbox("Perform Molecular Docking"),
+            "Free Energy": st.checkbox("Calculate Binding Free Energy"),
+            "Monte Carlo": st.checkbox("Run Monte Carlo Sampling"),
+            "Genetic Algorithm": st.checkbox("Use Genetic Algorithm Optimization")
         }
         
-        if st.button("Process Molecule"):
-            if molecule:
-                st.write("Processing molecular structure...")
-                st.write("Molecular structure processed!")
-                st.write("Atoms data:", atoms_data)
-                # Once the molecule is processed, run the simulation
-                try:
-                    st.write("Running simulation...")
-                    run_simulation(molecule)
-                    st.write("Simulation completed!")
-                    display_simulation_results()
-                except Exception as e:
-                    st.error(f"Error during simulation: {str(e)}")
-            else:
-                st.error("Please input a valid molecular structure.")
+        if st.button("Run Selected Analyses"):
+            try:
+                results = {}
+                
+                # Run selected analyses
+                if analysis_options["Molecular Dynamics"]:
+                    st.write("Running Molecular Dynamics Simulation...")
+                    md_results = run_simulation(ligand_file)
+                    results["MD"] = md_results
+                    
+                if analysis_options["Docking"]:
+                    st.write("Calculating Docking Score...")
+                    docking_score = calculate_docking_score(ligand_file, protein_file)
+                    results["Docking"] = docking_score
+                    
+                if analysis_options["Free Energy"]:
+                    st.write("Calculating Binding Free Energy...")
+                    binding_energy = mm_pbsa(ligand_file, protein_file)
+                    results["Free Energy"] = binding_energy
+                    
+                if analysis_options["Monte Carlo"]:
+                    st.write("Running Monte Carlo Sampling...")
+                    mc_pose, mc_energy = monte_carlo_docking(ligand_file, protein_file, temperature=300)
+                    results["Monte Carlo"] = {"pose": mc_pose, "energy": mc_energy}
+                    
+                if analysis_options["Genetic Algorithm"]:
+                    st.write("Running Genetic Algorithm Optimization...")
+                    ga_result = genetic_algorithm([ligand_file], protein_file)
+                    results["GA"] = ga_result
+                
+                # Display Results
+                st.subheader("Analysis Results")
+                
+                # Display numerical results
+                for analysis_type, result in results.items():
+                    st.write(f"{analysis_type} Results:")
+                    st.json(result)
+                
+                # Generate visualizations
+                st.subheader("Visualizations")
+                
+                # Interaction heatmap
+                st.write("Interaction Heatmap")
+                interaction_data = calculate_interaction_matrix(ligand_file, protein_file)
+                generate_heatmap(interaction_data)
+                
+                # Interaction network
+                st.write("Interaction Network")
+                interaction_network = calculate_interaction_network(ligand_file, protein_file)
+                generate_interaction_map(interaction_network)
+                
+                # Additional analysis outputs
+                if "MD" in results:
+                    st.write("Molecular Dynamics Trajectory")
+                    display_trajectory(results["MD"])
+                    
+                    st.write("RMSD Plot")
+                    plot_rmsd(results["MD"])
+                    
+                    st.write("Energy Plot")
+                    plot_energy(results["MD"])
+                
+            except Exception as e:
+                st.error(f"Error during analysis: {str(e)}")
+
+def calculate_interaction_matrix(ligand, protein):
+    # Placeholder for interaction matrix calculation
+    # This should be implemented based on your specific needs
+    return [[0, 1, 2], [1, 0, 3], [2, 3, 0]]
+
+def calculate_interaction_network(ligand, protein):
+    # Placeholder for interaction network calculation
+    # This should be implemented based on your specific needs
+    return [("Residue1", "Ligand", 0.5), ("Residue2", "Ligand", 0.3)]
+
+def display_trajectory(md_results):
+    # Implement trajectory visualization
+    st.write("Trajectory visualization placeholder")
+
+def plot_rmsd(md_results):
+    # Implement RMSD plotting
+    st.write("RMSD plot placeholder")
+
+def plot_energy(md_results):
+    # Implement energy plotting
+    st.write("Energy plot placeholder")
 
 if __name__ == "__main__":
     main()

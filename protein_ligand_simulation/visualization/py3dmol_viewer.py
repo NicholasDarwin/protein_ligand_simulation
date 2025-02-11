@@ -1,13 +1,18 @@
 # visualization/py3dmol_viewer.py
 import py3Dmol
+import streamlit.components.v1 as components
 
-def visualize_structure(pdb_file_path):
-    with open(pdb_file_path, 'r') as file:
-        pdb_data = file.read()
+def visualize_structure(mol):
+    """Visualize molecule using py3Dmol"""
+    view = py3Dmol.view(width=800, height=600)
     
-    # Create a viewer
-    viewer = py3Dmol.view(width=800, height=600)
-    viewer.addModel(pdb_data, "pdb")
-    viewer.setStyle({'stick': {}})
-    viewer.zoomTo()
-    viewer.show()
+    # Convert molecule to PDB format for visualization
+    pdb = Chem.MolToPDBBlock(mol)
+    view.addModel(pdb, "pdb")
+    
+    # Style the visualization
+    view.setStyle({'stick':{}})
+    view.zoomTo()
+    
+    # Display in Streamlit
+    components.html(view._repr_html_(), height=600)

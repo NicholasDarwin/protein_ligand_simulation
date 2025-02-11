@@ -2,35 +2,20 @@ import openmm
 from openmm import app
 from openmm.unit import *
 import tempfile
-from rdkit import Chem
-from rdkit.Chem import AllChem
+import os
 
 def generate_ligand_parameters(mol2_path):
-    """Generate parameters for the ligand using RDKit"""
-    # Read mol2 file
-    mol = Chem.MolFromMol2File(mol2_path, removeHs=False)
-    if mol is None:
-        raise ValueError("Failed to read mol2 file")
-    
-    # Add hydrogens if needed
-    mol = Chem.AddHs(mol)
-    
-    # Generate 3D coordinates if not present
-    if not mol.GetConformer().Is3D():
-        AllChem.EmbedMolecule(mol)
-    
-    # Optimize the geometry
-    AllChem.MMFFOptimizeMolecule(mol)
-    
-    return mol
+    """Generate parameters for the ligand using OpenMM directly"""
+    # Read mol2 file directly using OpenMM's built-in parser
+    pdb = app.PDBFile(mol2_path)
+    return pdb
 
-def create_system_with_custom_ligand(pdb, ligand_mol, forcefield):
+def create_system_with_custom_ligand(pdb, ligand_pdb, forcefield):
     """Create OpenMM system with custom ligand parameters"""
     # Create a new topology that includes the ligand
     modeller = app.Modeller(pdb.topology, pdb.positions)
     
-    # Add ligand parameters to the force field
-    # This is a simplified version - in practice, you'd need more sophisticated parameter generation
+    # Create system using the force field
     system = forcefield.createSystem(
         modeller.topology,
         nonbondedMethod=app.NoCutoff,
@@ -45,21 +30,14 @@ def run_simulation(input_file, force_field="amber99sbildn.xml", temperature=300*
     try:
         # Handle uploaded file
         if hasattr(input_file, 'name'):
-            with tempfile.NamedTemporaryFile(suffix='.mol2', delete=False) as tmp_file:
+            with tempfile.NamedTemporaryFile(suffix='.pdb', delete=False) as tmp_file:
                 tmp_file.write(input_file.getvalue())
-                mol2_path = tmp_file.name
+                pdb_path = tmp_file.name
         else:
-            mol2_path = input_file
+            pdb_path = input_file
 
-        # Generate ligand parameters
-        ligand_mol = generate_ligand_parameters(mol2_path)
-        
-        # Convert to PDB format for OpenMM
-        with tempfile.NamedTemporaryFile(suffix='.pdb', delete=False) as pdb_file:
-            writer = Chem.PDBWriter(pdb_file.name)
-            writer.write(ligand_mol)
-            writer.close()
-            pdb = app.PDBFile(pdb_file.name)
+        # Generate ligand parameters directly from PDB
+        ligand_pdb = generate_ligand_parameters(pdb_path)
 
         # Load force field
         try:
@@ -68,7 +46,7 @@ def run_simulation(input_file, force_field="amber99sbildn.xml", temperature=300*
             raise ValueError(f"Failed to load force field: {str(e)}")
 
         # Create system with custom ligand
-        system, modeller = create_system_with_custom_ligand(pdb, ligand_mol, forcefield)
+        system, modeller = create_system_with_custom_ligand(ligand_pdb, ligand_pdb, forcefield)
 
         # Set up integrator
         integrator = openmm.LangevinIntegrator(temperature, 1/picosecond, time_step)
@@ -109,13 +87,8 @@ def run_simulation(input_file, force_field="amber99sbildn.xml", temperature=300*
         raise Exception(f"Simulation failed: {str(e)}")
     finally:
         # Clean up temporary files
-        if 'mol2_path' in locals():
+        if 'pdb_path' in locals():
             try:
-                os.unlink(mol2_path)
-            except:
-                pass
-        if 'pdb_file' in locals():
-            try:
-                os.unlink(pdb_file.name)
+                os.unlink(pdb_path)
             except:
                 pass
