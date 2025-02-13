@@ -3,7 +3,7 @@ import subprocess
 def run_gromacs_simulation(protein_name, ligand_name):
     # Example GROMACS commands using the protein_name
     subprocess.run(["gmx", "pdb2gmx", "-f", f"data/{protein_name}.pdb", "-o", f"data/{protein_name}_processed.gro", "-water", "spc"])
-    subprocess.run(["gmx", "pdb2gmx", "-f", f"data/{ligand_name}.pdb", "-o", f"data/{ligand_name}_processed.gro", "-water", "spc"])
+    #subprocess.run(["gmx", "pdb2gmx", "-f", f"data/{ligand_name}.pdb", "-o", f"data/{ligand_name}_processed.gro", "-water", "spc"])
 
 
     '''

@@ -98,34 +98,32 @@
     
         function runSimulation() {
             const proteinName = document.getElementById('protein_name').value;
-            const simulationName = document.getElementById('simulation_name').value;
             const ligandName = document.getElementById('ligand_name').value;
+            // Remove simulation_name since it's not needed and causing confusion
             
-            if (proteinName && simulationName && ligandName) {
-                fetch(`/run_simulation?protein_name=${proteinName}&simulation_name=${simulationName}&ligand_name=${ligandName}`)
+            if (proteinName && ligandName) {
+                fetch(`/run_simulation?protein_name=${proteinName}&ligand_name=${ligandName}`)
                     .then(response => response.json())
                     .then(data => alert(data.message))
                     .catch(error => alert("Failed to start simulation"));
             } else {
-                alert("Please enter all feilds");
+                alert("Please enter both protein and ligand names");
             }
         }
     </script>
-</head>
-<body>
-    <div class="container">
-        <h1>Protein-Ligand MD Simulation</h1>
-        <label for="protein_name">Protein Name:</label>
-        <input type="text" id="protein_name" name="protein_name" placeholder="Enter protein name"><br>
-
-        <label for="ligand_name">Ligand Name:</label>
-        <input type="text" id="ligand_name" name="ligand_name" placeholder="Enter ligand name"><br>
-
-        <label for="simulation_name">Simulation Name:</label>
-        <input type="text" id="simulation_name" name="simulation_name" placeholder="Enter simulation name"><br>
-
-        <button onclick="fetchPDB()">Fetch PDB</button><br><br>
-        <button onclick="runSimulation()">Run MD Simulation</button>
-    </div>
-</body>
-</html>
+    <body>
+        <div class="container">
+            <h1>Protein-Ligand MD Simulation</h1>
+            <label for="protein_name">Protein Name:</label>
+            <input type="text" id="protein_name" name="protein_name" placeholder="Enter protein name"><br>
+    
+            <label for="ligand_name">Ligand Name:</label>
+            <input type="text" id="ligand_name" name="ligand_name" placeholder="Enter ligand name"><br>
+    
+            <!-- Remove simulation_name input since it's not needed -->
+    
+            <button onclick="fetchPDB()">Fetch PDB</button><br><br>
+            <button onclick="runSimulation()">Run MD Simulation</button>
+        </div>
+    </body>
+    </html>
