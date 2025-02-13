@@ -2,7 +2,7 @@
 ;	File 'mdout.mdp' was generated
 ;	By user: unknown (0)
 ;	On host: DESKTOP-IJJJJ0I
-;	At date: Thu Feb 13 02:08:21 2025
+;	At date: Thu Feb 13 03:19:32 2025
 ;
 ;	Created by:
 ;	         :-) GROMACS - gmx grompp, 2023.3-Ubuntu_2023.3_1ubuntu3 (-:
@@ -171,7 +171,7 @@ annealing-temp           =
 ; GENERATE VELOCITIES FOR STARTUP RUN
 gen-vel                  = no
 gen-temp                 = 300
-gen-seed                 = 922613247
+gen-seed                 = -1275332243
 
 ; OPTIONS FOR BONDS    
 constraints              = none
