@@ -1,4 +1,5 @@
 ; Topology file for GROMACS (simplified version)
+#include "amber99sb-ildn.ff/forcefield.itp"
 
 [ system ]
 ; Name
@@ -6,5 +7,5 @@ Protein-Ligand System
 
 [ molecules ]
 ; Compound        #mols
-Protein_chain_A    1
-Ligand_chain_B     1
+Protein_1aki      1
+Ligand_1OXR       1

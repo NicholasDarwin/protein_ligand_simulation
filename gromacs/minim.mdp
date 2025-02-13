@@ -1,5 +1,4 @@
 ; Minimization parameter file for GROMACS
-
 integrator    = steep
 nsteps        = 50000
 emtol         = 1000.0
